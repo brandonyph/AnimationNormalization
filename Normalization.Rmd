@@ -1,0 +1,199 @@
+---
+title: "Data Normalization"
+author: "Brandon"
+date: "7/16/2021"
+output:
+  md_document:
+    variant: gfm
+---
+References
+1.  https://daviddalpiaz.github.io/appliedstats/transformations.html
+2.  https://www.datanovia.com/en/lessons/transform-data-to-normal-distribution-in-r/
+
+# Chapters 
+1.  Creation of sample dataset
+2.  Plot histogram and heatmap of raw count
+3.  Perform log10, square root, min_max normalization, rlog and plot out result
+4.  Animation of histogram
+5.  Animation of heatmap
+
+```{r setup, include=FALSE}
+library(DESeq2)
+library(pheatmap)
+library(ggplot2)
+library(gganimate)
+```
+
+
+```{r Raw Data }
+dds <- makeExampleDESeqDataSet(m=6,betaSD=1)
+
+countmatrix <- assay(dds)
+
+sample1 <- data.frame(assay(dds)[,1])
+colnames(sample1) <- "C1"
+
+ggplot(sample1, aes(x=C1)) + geom_histogram()
+pheatmap(countmatrix)
+```
+```{r}
+##MinMax Normalization 
+min_max_norm <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+sample1_minmax <- min_max_norm(sample1)
+
+ggplot(sample1_minmax, aes(x=C1)) + geom_histogram()
+
+pheatmap(min_max_norm(countmatrix))
+
+```
+
+```{r Log10 Normalization}
+##Log10
+
+sample1_log10 <- log10(sample1+1)
+
+ggplot(sample1_log10, aes(x=C1)) + geom_histogram()
+
+pheatmap(log10(countmatrix+1))
+
+```
+
+```{r Sqrt Normalization}
+##Squareroot Normalization 
+
+sample1_sqrt <- sqrt(sample1)
+
+ggplot(sample1_sqrt, aes(x=C1)) + geom_histogram()
+
+pheatmap(sqrt(countmatrix))
+
+```
+
+```{r rlog Normalization}
+
+#rlog normalization 
+dds_rlog <- rlog(dds)
+countmatrix_rlog <- assay(dds_rlog)
+
+sample1_rlog <- data.frame(countmatrix_rlog[,1])
+colnames(sample1_rlog) <- "C1"
+
+ggplot(sample1_rlog, aes(x=C1)) + geom_histogram()
+
+pheatmap(countmatrix_rlog)
+
+```
+
+
+```{r rlog animation}
+library(gganimate)
+
+animate_historgram <- function(StartingSample1,EndingSample1){
+    StartingSample1 <- min_max_norm(StartingSample1)
+    EndingSample1 <- min_max_norm(EndingSample1)
+    label <- row.names(StartingSample1)
+    
+    data <- rbind(cbind(label,StartingSample1),cbind(label,EndingSample1))
+    data$state <- c(rep("Raw",nrow(StartingSample1)),rep("Rlog",nrow(EndingSample1)))
+    
+    colnames(data) <- c("Genes","Count","State")
+    data$Count <- as.numeric(data$Count)
+    
+    p <- ggplot(data, aes(x=Count)) + geom_histogram(bins=100)  +
+      transition_states(State, transition_length = 5, state_length =1, wrap = FALSE) +
+      view_follow(fixed_x = TRUE)+
+      scale_x_continuous()+
+      labs(
+            x = "Relative Count Number",
+            y = "Frequencies",
+            title = "{closest_state}"
+            )+
+      enter_fade() + 
+      exit_shrink() +
+      ease_aes(default = "sine-in-out")
+    
+    animate(p, nframes=240, fps = 30,height = 480, width =480)
+}
+
+animate_historgram(sample1,sample1_rlog)
+
+
+```
+
+```{r}
+animate_historgram(sample1,sample1_sqrt)
+```
+
+
+```{r}
+animate_historgram(sample1,sample1_log10)
+```
+
+
+
+```{r Heatmap Animation}
+library(reshape2)
+
+animate_heatmap <- function(StartingMatrix,EndingMatrix){
+    StartingMatrixLong <- melt(StartingMatrix)
+    EndingMatrixLong <- melt(EndingMatrix)
+    
+    StartingMatrixLong$value <- min_max_norm(StartingMatrixLong$value)
+    EndingMatrixLong$value <- min_max_norm(EndingMatrixLong$value)
+    
+    plotmatrix <- rbind(StartingMatrixLong,EndingMatrixLong)
+    plotmatrix$state <- c(rep("Raw",nrow(StartingMatrixLong)),rep("Rlog",nrow(EndingMatrixLong)))
+    
+    p <- ggplot(plotmatrix,aes(y=Var1,x=Var2,fill=value)) + geom_tile()+
+          scale_fill_distiller(palette = "Spectral") +
+          labs(
+            x = "Sample",
+            y = "Genes",
+            title = "{closest_state}"
+          )+
+          theme_minimal()+
+          theme(axis.text.y= element_blank())+
+          transition_states(state, transition_length = 10, state_length =1, wrap = FALSE) + 
+          enter_fade() + 
+          exit_shrink() +
+          ease_aes(default = "sine-in-out")
+          
+    animate(p, nframes=240, fps = 30,height = 480, width =480)
+}
+
+animate_heatmap(countmatrix,countmatrix_rlog) 
+```
+
+```{r}
+animate_heatmap(countmatrix,log10(countmatrix+1)) 
+```
+
+
+
+
+
+
+
+
+```{r}
+animate_heatmap(countmatrix,sqrt(countmatrix)) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
